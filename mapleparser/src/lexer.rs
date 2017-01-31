@@ -79,7 +79,7 @@ impl<'s> SourceSlice<'s>
 pub struct Token { pub pos: Location, pub subtype: TokenSubtype }
 #[derive(Debug, PartialEq, RustcEncodable, Clone, Copy)] pub enum PairDirection { Open, Close }
 #[derive(Debug, PartialEq, RustcEncodable, Clone, Copy)] pub enum OperatorOptions { None, WithEqual, Twice }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TokenSubtype
 {
     Term, Identifier(String), StringLiteral(String), CharacterLiteral(char),
