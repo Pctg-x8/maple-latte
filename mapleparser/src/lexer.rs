@@ -77,8 +77,8 @@ impl<'s> SourceSlice<'s>
 }
 #[derive(Debug, PartialEq)]
 pub struct Token { pub pos: Location, pub subtype: TokenSubtype }
-#[derive(Debug, PartialEq, RustcEncodable)] pub enum PairDirection { Open, Close }
-#[derive(Debug, PartialEq, RustcEncodable)] pub enum OperatorOptions { None, WithEqual, Twice }
+#[derive(Debug, PartialEq, RustcEncodable, Clone, Copy)] pub enum PairDirection { Open, Close }
+#[derive(Debug, PartialEq, RustcEncodable, Clone, Copy)] pub enum OperatorOptions { None, WithEqual, Twice }
 #[derive(Debug, PartialEq)]
 pub enum TokenSubtype
 {
@@ -93,64 +93,119 @@ impl<'s> Encodable for Token
 {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error>
     {
+        use self::TokenSubtype::*;
+
         s.emit_struct("Token", 3, |s|
         {
             try!(s.emit_struct_field("line", 0, |s| s.emit_usize(self.pos.0)));
             try!(s.emit_struct_field("column", 1, |s| s.emit_usize(self.pos.1)));
             s.emit_struct_field("subtype", 2, |s| match &self.subtype
             {
-                &TokenSubtype::Term => s.emit_str("Term"),
-                &TokenSubtype::Identifier(ref v) => s.emit_struct("Identifier", 2, |s|
+                &Term => s.emit_str("Term"),
+                &Identifier(ref v) => s.emit_struct("Identifier", 2, |s|
                 {
                     try!(s.emit_struct_field("name", 0, |s| s.emit_str("Identifier")));
                     s.emit_struct_field("value", 1, |s| s.emit_str(v))
                 }),
-                &TokenSubtype::StringLiteral(ref v) => s.emit_struct("StringLiteral", 2, |s|
+                &StringLiteral(ref v) => s.emit_struct("StringLiteral", 2, |s|
                 {
                     try!(s.emit_struct_field("name", 0, |s| s.emit_str("StringLiteral")));
                     s.emit_struct_field("value", 1, |s| s.emit_str(v))
                 }),
-                &TokenSubtype::CharacterLiteral(c) => s.emit_struct("CharacterLiteral", 2, |s|
+                &CharacterLiteral(c) => s.emit_struct("CharacterLiteral", 2, |s|
                 {
                     try!(s.emit_struct_field("name", 0, |s| s.emit_str("CharacterLiteral")));
                     s.emit_struct_field("value", 1, |s| s.emit_char(c))
                 }),
-                &TokenSubtype::Parenthese(ref p) => s.emit_struct("Parenthese", 2, |s|
+                &Parenthese(p) => s.emit_struct("Parenthese", 2, |s|
                 {
                     try!(s.emit_struct_field("name", 0, |s| s.emit_str("Parenthese")));
                     s.emit_struct_field("dir", 1, |s| p.encode(s))
                 }),
-                &TokenSubtype::Bracket(ref p) => s.emit_struct("Bracket", 2, |s|
+                &Bracket(p) => s.emit_struct("Bracket", 2, |s|
                 {
                     try!(s.emit_struct_field("name", 0, |s| s.emit_str("Bracket")));
                     s.emit_struct_field("dir", 1, |s| p.encode(s))
                 }),
-                &TokenSubtype::Brace(ref p) => s.emit_struct("Brace", 2, |s|
+                &Brace(p) => s.emit_struct("Brace", 2, |s|
                 {
                     try!(s.emit_struct_field("name", 0, |s| s.emit_str("Brace")));
                     s.emit_struct_field("dir", 1, |s| p.encode(s))
                 }),
-                &TokenSubtype::AngleBracket { twice, equal, ref dir } => s.emit_struct("AngleBracket", 4, |s|
+                &AngleBracket { twice, equal, dir } => s.emit_struct("AngleBracket", 4, |s|
                 {
                     try!(s.emit_struct_field("name", 0, |s| s.emit_str("AngleBracket")));
                     try!(s.emit_struct_field("dir", 1, |s| dir.encode(s)));
                     try!(s.emit_struct_field("twice", 2, |s| s.emit_bool(twice)));
                     s.emit_struct_field("equal", 3, |s| s.emit_bool(equal))
                 }),
-                &TokenSubtype::Period(c) => s.emit_struct("Period", 2, |s|
+                &Period(c) => s.emit_struct("Period", 2, |s|
                 {
                     try!(s.emit_struct_field("name", 0, |s| s.emit_str("Period")));
                     s.emit_struct_field("count", 1, |s| s.emit_usize(c))  
                 }),
-                &TokenSubtype::Colon => s.emit_str("Colon"),
-                &TokenSubtype::Semicolon => s.emit_str("Semicolon"),
-                &TokenSubtype::Comma => s.emit_str("Comma"),
-                &TokenSubtype::Atmark => s.emit_str("Atmark"),
-                &TokenSubtype::Sharp => s.emit_str("Sharp"),
-                &TokenSubtype::Plus(ref opts) => s.emit_struct("Plus", 2, |s|
+                &Colon => s.emit_str("Colon"),
+                &Semicolon => s.emit_str("Semicolon"),
+                &Comma => s.emit_str("Comma"),
+                &Atmark => s.emit_str("Atmark"),
+                &Sharp => s.emit_str("Sharp"),
+                &Question => s.emit_str("Question"),
+                &Plus(opts) => s.emit_struct("Plus", 2, |s|
                 {
                     try!(s.emit_struct_field("name", 0, |s| s.emit_str("Plus")));
                     s.emit_struct_field("options", 1, |s| opts.encode(s))
+                }),
+                &Minus(opts) => s.emit_struct("Minus", 2, |s|
+                {
+                    try!(s.emit_struct_field("name", 0, |s| s.emit_str("Minus")));
+                    s.emit_struct_field("options", 1, |s| opts.encode(s))
+                }),
+                &Asterisk(opts) => s.emit_struct("Asterisk", 2, |s|
+                {
+                    try!(s.emit_struct_field("name", 0, |s| s.emit_str("Asterisk")));
+                    s.emit_struct_field("options", 1, |s| opts.encode(s))
+                }),
+                &Slash { equal } => s.emit_struct("Slash", 2, |s|
+                {
+                    try!(s.emit_struct_field("name", 0, |s| s.emit_str("Slash")));
+                    s.emit_struct_field("equal", 1, |s| s.emit_bool(equal))
+                }),
+                &Percent { equal } => s.emit_struct("Percent", 2, |s|
+                {
+                    try!(s.emit_struct_field("name", 0, |s| s.emit_str("Percent")));
+                    s.emit_struct_field("equal", 1, |s| s.emit_bool(equal))
+                }),
+                &Accent { equal } => s.emit_struct("Accent", 2, |s|
+                {
+                    try!(s.emit_struct_field("name", 0, |s| s.emit_str("Accent")));
+                    s.emit_struct_field("equal", 1, |s| s.emit_bool(equal))
+                }),
+                &Exclamation { equal } => s.emit_struct("Exclamation", 2, |s|
+                {
+                    try!(s.emit_struct_field("name", 0, |s| s.emit_str("Exclamation")));
+                    s.emit_struct_field("equal", 1, |s| s.emit_bool(equal))
+                }),
+                &Tilde { equal } => s.emit_struct("Tilde", 2, |s|
+                {
+                    try!(s.emit_struct_field("name", 0, |s| s.emit_str("Tilde")));
+                    s.emit_struct_field("equal", 1, |s| s.emit_bool(equal))
+                }),
+                &Equal { twice } => s.emit_struct("Equal", 2, |s|
+                {
+                    try!(s.emit_struct_field("name", 0, |s| s.emit_str("Equal")));
+                    s.emit_struct_field("twice", 1, |s| s.emit_bool(twice))
+                }),
+                &Ampasand { twice, equal } => s.emit_struct("Ampasand", 3, |s|
+                {
+                    try!(s.emit_struct_field("name", 0, |s| s.emit_str("Ampasand")));
+                    try!(s.emit_struct_field("twice", 1, |s| s.emit_bool(twice)));
+                    s.emit_struct_field("equal", 2, |s| s.emit_bool(equal))
+                }),
+                &VerticalLine { twice, equal } => s.emit_struct("VerticalLine", 3, |s|
+                {
+                    try!(s.emit_struct_field("name", 0, |s| s.emit_str("VerticalLine")));
+                    try!(s.emit_struct_field("twice", 1, |s| s.emit_bool(twice)));
+                    s.emit_struct_field("equal", 2, |s| s.emit_bool(equal))
                 })
             })
         })
@@ -294,6 +349,7 @@ pub fn tokenize<'s>(input: &mut SourceSlice<'s>) -> Result<Token, TokenizeError>
         Some(',') => input.drop_and(1, |p| Token { pos: p, subtype: Comma }),
         Some('@') => input.drop_and(1, |p| Token { pos: p, subtype: Atmark }),
         Some('#') => input.drop_and(1, |p| Token { pos: p, subtype: Sharp }),
+        Some('?') => input.drop_and(1, |p| Token { pos: p, subtype: Question }),
         Some('"') => parse_string(input),
         Some('\'') => parse_char(input),
         Some('+') => match input.peek(1)
@@ -405,4 +461,37 @@ pub fn tokenize<'s>(input: &mut SourceSlice<'s>) -> Result<Token, TokenizeError>
 {
     assert_eq!(tokenize(&mut SourceSlice::new(&['@'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Atmark }));
     assert_eq!(tokenize(&mut SourceSlice::new(&['#'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Sharp }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['?'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Question }));
+}
+#[test] fn tokenize_operators()
+{
+    assert_eq!(tokenize(&mut SourceSlice::new(&['+'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Plus(OperatorOptions::None) }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['+', '+'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Plus(OperatorOptions::Twice) }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['+', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Plus(OperatorOptions::WithEqual) }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['-'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Minus(OperatorOptions::None) }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['-', '-'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Minus(OperatorOptions::Twice) }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['-', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Minus(OperatorOptions::WithEqual) }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['*'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Asterisk(OperatorOptions::None) }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['*', '*'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Asterisk(OperatorOptions::Twice) }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['*', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Asterisk(OperatorOptions::WithEqual) }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['/'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Slash { equal: false } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['/', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Slash { equal: true } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['%'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Percent { equal: false } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['%', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Percent { equal: true } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['&'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Ampasand { twice: false, equal: false } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['&', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Ampasand { twice: false, equal: true } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['&', '&'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Ampasand { twice: true, equal: false } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['&', '&', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Ampasand { twice: true, equal: true } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['|'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::VerticalLine { twice: false, equal: false } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['|', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::VerticalLine { twice: false, equal: true } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['|', '|'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::VerticalLine { twice: true, equal: false } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['|', '|', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::VerticalLine { twice: true, equal: true } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['^'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Accent { equal: false } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['^', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Accent { equal: true } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Equal { twice: false } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['=', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Equal { twice: true } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['!'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Exclamation { equal: false } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['!', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Exclamation { equal: true } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['~'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Tilde { equal: false } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['~', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Tilde { equal: true } }));
 }
