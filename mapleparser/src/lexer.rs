@@ -435,8 +435,8 @@ pub fn tokenize<'s>(input: &mut SourceSlice<'s>) -> Result<Token, TokenizeError>
 }
 #[test] fn tokenize_pairs()
 {
-    assert_eq!(tokenize(&mut SourceSlice::new(&['<'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::AngleBracket(PairDirection::Open) }));
-    assert_eq!(tokenize(&mut SourceSlice::new(&['>'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::AngleBracket(PairDirection::Close) }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['<'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::AngleBracket { twice: false, equal: false, dir: PairDirection::Open } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['>'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::AngleBracket { twice: false, equal: false, dir: PairDirection::Close } }));
     assert_eq!(tokenize(&mut SourceSlice::new(&['['])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Bracket(PairDirection::Open) }));
     assert_eq!(tokenize(&mut SourceSlice::new(&[']'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Bracket(PairDirection::Close) }));
     assert_eq!(tokenize(&mut SourceSlice::new(&['{'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Brace(PairDirection::Open) }));
@@ -494,4 +494,10 @@ pub fn tokenize<'s>(input: &mut SourceSlice<'s>) -> Result<Token, TokenizeError>
     assert_eq!(tokenize(&mut SourceSlice::new(&['!', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Exclamation { equal: true } }));
     assert_eq!(tokenize(&mut SourceSlice::new(&['~'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Tilde { equal: false } }));
     assert_eq!(tokenize(&mut SourceSlice::new(&['~', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Tilde { equal: true } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['<', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::AngleBracket { twice: false, equal: true, dir: PairDirection::Open } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['>', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::AngleBracket { twice: false, equal: true, dir: PairDirection::Close } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['<', '<'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::AngleBracket { twice: true, equal: false, dir: PairDirection::Open } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['>', '>'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::AngleBracket { twice: true, equal: false, dir: PairDirection::Close } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['<', '<', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::AngleBracket { twice: true, equal: true, dir: PairDirection::Open } }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['>', '>', '='])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::AngleBracket { twice: true, equal: true, dir: PairDirection::Close } }));
 }
