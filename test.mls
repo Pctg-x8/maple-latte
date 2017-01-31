@@ -1,0 +1,167 @@
+// Test Source
+
+/* Nestable /* Block */ Comment */
+
+// Normal Function
+int main(string[] args) { maple.io.println("test args: ", args.length); return 0; }
+// Expression Form with Code Block
+int main(string[] args) = { maple.io.println("test args: ", args.length); return 0; };
+// Shortform
+auto main(string[] args) maple.io.println("test args: ", args.length);
+// Expression Form with Automatic Inference
+T add(T a, T b) = a + b;
+// Overriding by Pattern Matching
+uint add(Wrap { v: a }, Wrap { v: b }) = a + b;
+uint add(WrapT(a), WrapT(b)) = a + b;
+// Overriding by Return Type
+/* (0) */ uint test() = 0;
+/* (1) */ float test() = 1.0f;
+void main()
+{
+	// immutable binding
+	let x = test -> uint;
+	maple.io.println(x);				// "0"
+
+	// Pattern-base decomposition
+	let (y, z) = (test, test) -> (uint, float);
+	maple.debug.print_vars(y, z);		// "0, 1.0"
+
+	// Calling Function without Parentheses
+	uint vu = test;	// called (0)
+	float vf = test; // called (1)
+	auto v_ = test(); // Compilation Failed: Cannot resolve overriding by return type
+	auto v_ = test -> uint; // called (0)
+
+	// Uniform Function Calling Syntax
+	auto c = 0.add(1);
+	auto d = c.add(2);
+	// Type inferencing without "auto" / shadowing
+	const c = c.add(4);
+	var c = c.add(5);
+	val d = c.add(6);	// = "const"
+}
+
+// Class Definition
+public class Wrap
+{
+	public uint v;
+}
+// TupleClass Definition
+public class WrapT(public uint) {}
+// Shortform
+public class WrapT(public uint);
+// Default: private(only visible in source)
+class WrapS(uint);
+
+// Trait(Interface) Definition
+public trait Numeric
+{
+	// Associated Constants
+	const zero;
+	const one;
+
+	// Generics Constraints and Binary Operator Definition
+	N operator+(N n) where N: Numeric;
+	// Self type and Unary Operator Definition
+	This operator-();
+
+	// Default implementation
+	N operator-(N n) where N: Numeric { this + (-n) }
+}
+trait Range
+{
+	// Associated Aliasing
+	alias ElementType;
+
+	// Property
+	ElementType front { get; }
+}
+// Class Template
+class InfiniteRange<T>
+{
+	public T v;
+	// Trait Implementation
+	impl Range
+	{
+		public alias ElementType = T;
+		public T front { get = this.v; }
+	}
+	// SingleLine Trait Implementation
+	impl alias Range.ElementType = T;
+	impl Range.front { get = this.v; }
+	impl property Range.front = this.v;
+}
+// Final Class
+final class ObservableChange<V>
+{
+	V v;
+	// Setter Property
+	public V value
+	{
+		get = this.v;
+		set(v)
+		{
+			System.out.println("Value Changing! ", this.v, " -> ", v);
+			this.v = v;
+		}
+	}
+	// SingleLine Property Implementation
+	public property value = this.v;
+	// Inference by usage/other definition
+	public property value(v)
+	{
+		System.out.println("Value Changing! ", this.v, " -> ", v);
+		this.v = v;
+	}
+}
+// Class Template with Explicit Constraints
+final class SteppingRange<T: Numeric>
+{
+	T v = T.zero;
+
+	impl alias Range.ElementType = T;
+	impl alias Range.front = this.v;
+}
+// Template Constraint by Where clause
+public T front_or(T t, F or) where F: Callable<Return = T>
+{
+	// "if" as expression / if-match
+	return if match t.front = Some(t) then t else or();
+}
+public T front_or(T t, F or) where F: Callable<Return = T> = if match t.front = Some(t) then t else or;
+// Enumeration
+public enum Value { Zero, One, More }
+// Guard / Pure Function
+public pure dict(uint v)
+	| v == 0 -> Value.Zero
+	| v == 1 -> Value.One
+	| otherwise -> Value.More;
+// Disjointing
+public pure dict(uint v) | v == 0 -> Value.Zero;
+public pure dict(uint v) | v == 1 -> Value.One;
+public pure dict(uint v) = Value.More;
+// By Pattern Matching("match" as Expression)
+public pure dict(uint v) = match v
+{
+	0 -> Value.Zero, 1 -> Value.One, _ -> Value.More
+}
+
+// Import
+import net.minecraft.block.*;
+// SemVer Conditional Import(--vercond mc_version="1.7.10" or -Vmc_version=1.7.10)
+import cpw.mods.fml.common.relauncher.* on mc_version = "1.7.10";
+import net.minecraftforge.fml.common.relauncher.* on mc_version >= "1.8";
+// Annotations
+@[SideOnly(Side.CLIENT)]
+public class ClientCode
+{
+	// Local import / Absolute Symbol Import
+	import System.out.println;
+
+	// constructor
+	public this() { println("ClientCode launched!"); }
+
+	// simple annotations
+	@Override
+	public void init() {}
+}

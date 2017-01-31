@@ -1,0 +1,6 @@
+language: rust
+rust: stable
+
+script:
+  - cd mapleparser && cargo test --verbose
+  - cd .. && cargo run -- test.mls
