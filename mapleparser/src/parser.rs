@@ -2,6 +2,7 @@
 
 use {Token, TokenSubtype};
 
+#[derive(Clone)]
 pub struct TokenRef<'s>
 {
 	container: &'s [Token], ptr: usize
