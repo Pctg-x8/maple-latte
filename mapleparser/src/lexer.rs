@@ -75,7 +75,7 @@ impl<'s> SourceSlice<'s>
         }
     }
 }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Token { pub pos: Location, pub subtype: TokenSubtype }
 #[derive(Debug, PartialEq, RustcEncodable, Clone, Copy)] pub enum PairDirection { Open, Close }
 #[derive(Debug, PartialEq, RustcEncodable, Clone, Copy)] pub enum OperatorOptions { None, WithEqual, Twice }
@@ -382,6 +382,28 @@ pub fn tokenize<'s>(input: &mut SourceSlice<'s>) -> Result<Token, TokenizeError>
             Ok(Token { pos: idloc, subtype: Identifier(id.iter().cloned().collect()) })
         }
     }
+}
+
+pub fn tokenize_all(s: &str) -> Result<Vec<Token>, TokenizeError>
+{
+    fn recursive(input: &mut SourceSlice, sink: &mut Vec<Token>) -> Result<(), TokenizeError>
+    {
+        tokenize(input).and_then(|t|
+        {
+            if let &Token { subtype: TokenSubtype::Term, .. } = &t
+            {
+                sink.push(t.clone());
+                Ok(())
+            }
+            else
+            {
+                sink.push(t);
+                recursive(input, sink)
+            }
+        })
+    }
+    let mut ts = Vec::new();
+    recursive(&mut SourceSlice::new(&s.chars().collect::<Vec<_>>()), &mut ts).map(|_| ts)
 }
 
 #[test] fn tokenize_idents()

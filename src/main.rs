@@ -13,12 +13,14 @@ fn main()
         {
             let mut s = String::new(); fp.read_to_string(&mut s).map(|_| s.chars().collect::<Vec<_>>())
         }).unwrap();
-        let mut source = mapleparser::SourceSlice::new(&source);
+        let toks = mapleparser::tokenize_all(&mut mapleparser::SourceSlice::new(&source)).unwrap();
+        println!("{}", json::encode(&toks).unwrap());
+        /*let mut source = mapleparser::SourceSlice::new(&source);
         loop
         {
             let tok = mapleparser::tokenize(&mut source).unwrap();
             println!("{}", json::encode(&tok).unwrap());
             if tok.subtype == mapleparser::TokenSubtype::Term { break; }
-        }
+        }*/
     }
 }
