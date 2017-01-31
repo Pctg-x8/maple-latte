@@ -243,7 +243,7 @@ pub fn tokenize<'s>(input: &mut SourceSlice<'s>) -> Result<Token, TokenizeError>
         }
         recursive(input.drop_opt(2))
     }
-    fn parse_char_fragment<'s, 'i, 'd>(input: &'i mut SourceSlice<'s>, sink: &'d mut String) -> Result<(), TokenizeError>
+    fn parse_char_fragment<'s, 'd>(input: &mut SourceSlice<'s>, sink: &'d mut String) -> Result<(), TokenizeError>
     {
         match input.front()
         {
@@ -306,6 +306,36 @@ pub fn tokenize<'s>(input: &mut SourceSlice<'s>) -> Result<Token, TokenizeError>
             None => Err(UnclosedCharacterLiteral(input.current().clone()))
         }
     }
+    // a [a / =]
+    fn parse_operator_which<V: FnOnce(OperatorOptions) -> TokenSubtype>(input: &mut SourceSlice, a: char, variant: V) -> Result<Token, TokenizeError>
+    {
+        match input.peek(1)
+        {
+            Some(c) if c == a => input.drop_and(2, |p| Token { pos: p, subtype: variant(OperatorOptions::Twice) }),
+            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: variant(OperatorOptions::WithEqual) }),
+            _ => input.drop_and(1, |p| Token { pos: p, subtype: variant(OperatorOptions::None) })
+        }
+    }
+    // a [=]
+    fn parse_operator_eq<V: FnOnce(bool) -> TokenSubtype>(input: &mut SourceSlice, variant: V) -> Result<Token, TokenizeError>
+    {
+        match input.peek(1)
+        {
+            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: variant(true) }),
+            _ => input.drop_and(1, |p| Token { pos: p, subtype: variant(false) })
+        }
+    }
+    // a [a] [=]
+    fn parse_operator_large<V: FnOnce(bool, bool) -> TokenSubtype>(input: &mut SourceSlice, a: char, variant: V) -> Result<Token, TokenizeError>
+    {
+        match input.peek(1)
+        {
+            Some(c) if c == a && input.peek(2) == Some('=') => input.drop_and(3, |p| Token { pos: p, subtype: variant(true, true) }),
+            Some(c) if c == a => input.drop_and(2, |p| Token { pos: p, subtype: variant(true, false) }),
+            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: variant(false, true) }),
+            _ => input.drop_and(1, |p| Token { pos: p, subtype: variant(false, false) })
+        }
+    }
     match input.front()
     {
         None => Ok(Token { pos: input.current().clone(), subtype: TokenSubtype::Term }),
@@ -318,26 +348,8 @@ pub fn tokenize<'s>(input: &mut SourceSlice<'s>) -> Result<Token, TokenizeError>
         Some(']') => input.drop_and(1, |p| Token { pos: p, subtype: Bracket(PairDirection::Close) }),
         Some('{') => input.drop_and(1, |p| Token { pos: p, subtype: Brace(PairDirection::Open) }),
         Some('}') => input.drop_and(1, |p| Token { pos: p, subtype: Brace(PairDirection::Close) }),
-        Some('<') => match input.peek(1)
-        {
-            Some('<') => match input.peek(2)
-            {
-                Some('=') => input.drop_and(3, |p| Token { pos: p, subtype: AngleBracket { twice: true, equal: true, dir: Open } }),
-                _ => input.drop_and(2, |p| Token { pos: p, subtype: AngleBracket { twice: true, equal: false, dir: Open } })
-            },
-            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: AngleBracket { twice: false, equal: true, dir: Open } }),
-            _ => input.drop_and(1, |p| Token { pos: p, subtype: AngleBracket { twice: false, equal: false, dir: Open } })
-        },
-        Some('>') => match input.peek(1)
-        {
-            Some('>') => match input.peek(2)
-            {
-                Some('=') => input.drop_and(3, |p| Token { pos: p, subtype: AngleBracket { twice: true, equal: true, dir: Close } }),
-                _ => input.drop_and(2, |p| Token { pos: p, subtype: AngleBracket { twice: true, equal: false, dir: Close } })
-            },
-            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: AngleBracket { twice: false, equal: true, dir: Close } }),
-            _ => input.drop_and(1, |p| Token { pos: p, subtype: AngleBracket { twice: false, equal: false, dir: Close } })
-        },
+        Some('<') => parse_operator_large(input, '<', |t, e| AngleBracket { twice: t, equal: e, dir: Open }),
+        Some('>') => parse_operator_large(input, '>', |t, e| AngleBracket { twice: t, equal: e, dir: Close }),
         Some('.') => if input.peek(1) == Some('.')
         {
             if input.peek(2) == Some('.') { input.drop_and(3, |p| Token { pos: p, subtype: Period(3) }) }
@@ -352,68 +364,17 @@ pub fn tokenize<'s>(input: &mut SourceSlice<'s>) -> Result<Token, TokenizeError>
         Some('?') => input.drop_and(1, |p| Token { pos: p, subtype: Question }),
         Some('"') => parse_string(input),
         Some('\'') => parse_char(input),
-        Some('+') => match input.peek(1)
-        {
-            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: Plus(OperatorOptions::WithEqual) }),
-            Some('+') => input.drop_and(2, |p| Token { pos: p, subtype: Plus(OperatorOptions::Twice) }),
-            _ => input.drop_and(1, |p| Token { pos: p, subtype: Plus(OperatorOptions::None) })
-        },
-        Some('-') => match input.peek(1)
-        {
-            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: Minus(OperatorOptions::WithEqual) }),
-            Some('-') => input.drop_and(2, |p| Token { pos: p, subtype: Minus(OperatorOptions::Twice) }),
-            _ => input.drop_and(1, |p| Token { pos: p, subtype: Minus(OperatorOptions::None) })
-        },
-        Some('*') => match input.peek(1)
-        {
-            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: Asterisk(OperatorOptions::WithEqual) }),
-            Some('*') => input.drop_and(2, |p| Token { pos: p, subtype: Asterisk(OperatorOptions::Twice) }),
-            _ => input.drop_and(1, |p| Token { pos: p, subtype: Asterisk(OperatorOptions::None) })
-        },
-        Some('/') => match input.peek(1)
-        {
-            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: Slash { equal: true } }),
-            _ => input.drop_and(1, |p| Token { pos: p, subtype: Slash { equal: false } })
-        },
-        Some('%') => match input.peek(1)
-        {
-            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: Percent { equal: true } }),
-            _ => input.drop_and(1, |p| Token { pos: p, subtype: Percent { equal: false } })
-        },
-        Some('&') => match input.peek(1)
-        {
-            Some('&') => if input.peek(2) == Some('=') { input.drop_and(3, |p| Token { pos: p, subtype: Ampasand { twice: true, equal: true } }) }
-            else { input.drop_and(2, |p| Token { pos: p, subtype: Ampasand { twice: true, equal: false } }) },
-            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: Ampasand { twice: false, equal: true } }),
-            _ => input.drop_and(1, |p| Token { pos: p, subtype: Ampasand { twice: false, equal: false } })
-        },
-        Some('|') => match input.peek(1)
-        {
-            Some('|') => if input.peek(2) == Some('=') { input.drop_and(3, |p| Token { pos: p, subtype: VerticalLine { twice: true, equal: true } }) }
-            else { input.drop_and(2, |p| Token { pos: p, subtype: VerticalLine { twice: true, equal: false } }) },
-            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: VerticalLine { twice: false, equal: true } }),
-            _ => input.drop_and(1, |p| Token { pos: p, subtype: VerticalLine { twice: false, equal: false } })
-        },
-        Some('^') => match input.peek(1)
-        {
-            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: Accent { equal: true } }),
-            _ => input.drop_and(1, |p| Token { pos: p, subtype: Accent { equal: false } })
-        },
-        Some('=') => match input.peek(1)
-        {
-            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: Equal { twice: true } }),
-            _ => input.drop_and(1, |p| Token { pos: p, subtype: Equal { twice: false } })
-        },
-        Some('!') => match input.peek(1)
-        {
-            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: Exclamation { equal: true } }),
-            _ => input.drop_and(1, |p| Token { pos: p, subtype: Exclamation { equal: false } })
-        },
-        Some('~') => match input.peek(1)
-        {
-            Some('=') => input.drop_and(2, |p| Token { pos: p, subtype: Tilde { equal: true } }),
-            _ => input.drop_and(1, |p| Token { pos: p, subtype: Tilde { equal: false } })
-        },
+        Some('+') => parse_operator_which(input, '+', Plus),
+        Some('-') => parse_operator_which(input, '-', Minus),
+        Some('*') => parse_operator_which(input, '*', Asterisk),
+        Some('/') => parse_operator_eq(input, |e| Slash { equal: e }),
+        Some('%') => parse_operator_eq(input, |e| Percent { equal: e }),
+        Some('&') => parse_operator_large(input, '&', |t, e| Ampasand { twice: t, equal: e }),
+        Some('|') => parse_operator_large(input, '|', |t, e| VerticalLine { twice: t, equal: e }),
+        Some('^') => parse_operator_eq(input, |e| Accent { equal: e }),
+        Some('=') => parse_operator_eq(input, |t| Equal { twice: t }),
+        Some('!') => parse_operator_eq(input, |e| Exclamation { equal: e }),
+        Some('~') => parse_operator_eq(input, |e| Tilde { equal: e }),
         Some(_) =>
         {
             let SourceSlice(idloc, id) = input.take_while(|c| !split_ident(c));
