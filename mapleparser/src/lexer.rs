@@ -425,12 +425,12 @@ pub fn tokenize<'s>(input: &mut SourceSlice<'s>) -> Result<Token, TokenizeError>
 
 #[test] fn tokenize_idents()
 {
-    assert_eq!(tokenize(&mut SourceSlice::new(&['a', 'b', 'c', '\n'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Identifier(&['a', 'b', 'c']) }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['a', 'b', 'c', '\n'])), Ok(Token { pos: Location::default(), subtype: TokenSubtype::Identifier("abc".into()) }));
 }
 #[test] fn tokenize_comments()
 {
     assert_eq!(tokenize(&mut SourceSlice::new(&['/', '*', 'a', '*', '/'])), Ok(Token { pos: Location(1, 6), subtype: TokenSubtype::Term }));
-    assert_eq!(tokenize(&mut SourceSlice::new(&['/', '/', 'a', ' ', '\n', 't'])), Ok(Token { pos: Location(2, 1), subtype: TokenSubtype::Identifier(&['t']) }));
+    assert_eq!(tokenize(&mut SourceSlice::new(&['/', '/', 'a', ' ', '\n', 't'])), Ok(Token { pos: Location(2, 1), subtype: TokenSubtype::Identifier("t".into()) }));
     assert_eq!(tokenize(&mut SourceSlice::new(&['/', '*', 'a', '/', '*', 'b', '*', '*', '/', '*', '/', '\n'])), Ok(Token { pos: Location(2, 1), subtype: TokenSubtype::Term }));
 }
 #[test] fn tokenize_pairs()
